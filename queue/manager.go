@@ -73,8 +73,13 @@ func (q *queueManagerImpl) Put(name, message string) error {
 		err := func() error {
 			q.mutex.Lock()
 			defer q.mutex.Unlock()
+			foundQueue = q.queues[name]
+			// Проверим, вдруг очереди не было в Read Lock, а при входе в данный Lock очередь уже есть
+			if foundQueue != nil {
+				return nil
+			}
 			// Проверяем лимит на число очередей
-			if foundQueue == nil && len(q.queues) >= q.config.MaxQueueNum {
+			if len(q.queues) >= q.config.MaxQueueNum {
 				return ErrTooManyItems
 			}
 			foundQueue = q.factory(q.config.MaxMessageNumPerQueue)
