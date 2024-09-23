@@ -116,7 +116,11 @@ func (q *queueImpl) Get(ctx context.Context) (res string, err error) {
 	// Отправляем запрос на ожидание
 	q.getWaitStatusCh <- ws
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-q.done:
+			return
+		}
 		select {
 		// Контекст истек, сообщаем в главную горутину, что данную запись можно удалять из очереди на ожидание
 		case expiredGetElem := <-ws.createdElemCh:
