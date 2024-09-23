@@ -43,11 +43,12 @@ func main() {
 	signalCh := make(chan os.Signal, 2)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	<-signalCh
+
+	queueManager.Stop()
 	shutdownCtx, shutdownRelease := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownRelease()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("[ERROR]: HTTP server shutdown error: %v\n", err)
 	}
-	queueManager.Stop()
 }

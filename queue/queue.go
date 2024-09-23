@@ -117,15 +117,23 @@ func (q *queueImpl) Get(ctx context.Context) (res string, err error) {
 	q.getWaitStatusCh <- ws
 	go func() {
 		<-ctx.Done()
-		// Контекст истек, сообщаем в главную горутину, что данную запись на ожидаение можно удалять из очереди на ожидание
-		expiredGetElem := <-ws.createdElemCh
-		q.expiredGetElementsCh <- expiredGetElem
-		// Главная горутина обработает полченную запись и запишет в канал ws.errCh ошибку
+		select {
+		// Контекст истек, сообщаем в главную горутину, что данную запись можно удалять из очереди на ожидание
+		case expiredGetElem := <-ws.createdElemCh:
+			select {
+			case q.expiredGetElementsCh <- expiredGetElem:
+				// Главная горутина обработает полученную запись и запишет в канал ws.errCh ошибку
+			case <-q.done:
+			}
+		case <-q.done:
+		}
 	}()
 	// Ожидаем от горутины диспетчера приход либо сообщения, либо ошибки
 	select {
 	case res = <-ws.msgCh: // Запрошенное сообщение
 	case err = <-ws.errCh: // Например, запрос просрочен
+	case <-q.done:
+		return "", ErrNoMessage
 	}
 	return
 }
@@ -134,9 +142,18 @@ func (q *queueImpl) Get(ctx context.Context) (res string, err error) {
 func (q *queueImpl) Put(message string) error {
 	msg := newMessageWithConfirmation(message)
 	// отправляем запрос на добавление нового сообщения
-	q.messageCh <- msg
+	select {
+	case q.messageCh <- msg:
+	case <-q.done:
+		return ErrTooManyItems
+	}
 	// Получаем подтверждение принятия сообщения
-	return <-msg.confirmation
+	select {
+	case err := <-msg.confirmation:
+		return err
+	case <-q.done:
+		return ErrTooManyItems
+	}
 }
 
 // Stop останавливает горутину, которая обрабатывает запросы пользователя
