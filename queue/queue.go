@@ -3,6 +3,7 @@ package queue
 import (
 	"container/list"
 	"context"
+	"sync/atomic"
 )
 
 // queue опеределяет интерфейс для работы с очередью сообщений
@@ -28,6 +29,7 @@ type queueImpl struct {
 	getWaitStatusCh      chan *getWaitStatus           // канал для приёма ожидающий запросов на чтение
 	expiredGetElementsCh chan *list.Element            // канал для просроченных запросов на чтение сообщений (Get)
 	done                 chan struct{}                 // закрытие данного канала означает запрос на прекращение работы очереди
+	stopped              atomic.Bool                   // флаг остановлена ли очередь
 }
 
 type messageWithConfirmation struct {
@@ -162,7 +164,9 @@ func (q *queueImpl) Put(message string) error {
 
 // Stop останавливает горутину, которая обрабатывает запросы пользователя
 func (q *queueImpl) Stop() {
-	close(q.done)
+	if q.stopped.CompareAndSwap(false, true) {
+		close(q.done)
+	}
 }
 
 // dispatch разбирает и обратаывает входящие запросы к очереди из главной горутины

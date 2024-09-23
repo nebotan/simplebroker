@@ -18,6 +18,7 @@ import (
 func TestQueueBasic(t *testing.T) {
 	const N = 10
 	q := newQueue(N)
+	defer q.Stop()
 
 	for i := range N {
 		err := q.Put(fmt.Sprintf("message%d", i))
@@ -62,6 +63,7 @@ func TestQueueMultiGorutine(t *testing.T) {
 		messages[fmt.Sprintf("message%d", i+1)] = 1
 	}
 	q := newQueueImpl(N * M)
+	defer q.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	var wg sync.WaitGroup
